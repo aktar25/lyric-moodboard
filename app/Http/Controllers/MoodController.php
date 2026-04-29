@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Sastrawi\Stemmer\StemmerFactory;
 
 class MoodController extends Controller
 {
@@ -13,8 +14,8 @@ class MoodController extends Controller
         // Joy / Happy
         'happy'      => ['joy'=>9,'sadness'=>0,'anger'=>0,'fear'=>0,'love'=>3],
         'senang'     => ['joy'=>9,'sadness'=>0,'anger'=>0,'fear'=>0,'love'=>1],
-        'tertawa'    => ['joy'=>8,'sadness'=>0,'anger'=>0,'fear'=>0,'love'=>1],
-        'menari'     => ['joy'=>8,'sadness'=>0,'anger'=>0,'fear'=>0,'love'=>2],
+        'tawa'    => ['joy'=>8,'sadness'=>0,'anger'=>0,'fear'=>0,'love'=>1],
+        'tari'     => ['joy'=>8,'sadness'=>0,'anger'=>0,'fear'=>0,'love'=>2],
         'bebas'      => ['joy'=>8,'sadness'=>0,'anger'=>0,'fear'=>0,'love'=>1],
         'cahaya'     => ['joy'=>7,'sadness'=>0,'anger'=>0,'fear'=>0,'love'=>2],
         'pagi'       => ['joy'=>6,'sadness'=>1,'anger'=>0,'fear'=>0,'love'=>2],
@@ -22,7 +23,7 @@ class MoodController extends Controller
         // Sadness / Melancholy
         'cry'        => ['joy'=>0,'sadness'=>9,'anger'=>1,'fear'=>1,'love'=>1],
         'sedih'      => ['joy'=>0,'sadness'=>9,'anger'=>1,'fear'=>1,'love'=>0],
-        'menangis'   => ['joy'=>0,'sadness'=>9,'anger'=>1,'fear'=>1,'love'=>0],
+        'tangis'   => ['joy'=>0,'sadness'=>9,'anger'=>1,'fear'=>1,'love'=>0],
         'hancur'     => ['joy'=>0,'sadness'=>9,'anger'=>2,'fear'=>1,'love'=>1],
         'hilang'     => ['joy'=>0,'sadness'=>8,'anger'=>1,'fear'=>3,'love'=>1],
         'sendiri'    => ['joy'=>0,'sadness'=>8,'anger'=>0,'fear'=>3,'love'=>1],
@@ -79,8 +80,15 @@ class MoodController extends Controller
             'lyrics' => 'required|string|min:10|max:2000',
         ]);
 
-        $lyrics    = strtolower($request->input('lyrics'));
-        $words     = preg_split('/\W+/', $lyrics, -1, PREG_SPLIT_NO_EMPTY);
+        $rawLyrics = strtolower($request->input('lyrics'));
+
+        // --- 1. PROSES STEMMING DENGAN SASTRAWI ---
+        $stemmerFactory = new StemmerFactory();
+        $stemmer  = $stemmerFactory->createStemmer();
+        $cleanLyrics = $stemmer->stem($rawLyrics);
+
+            // --- 2. TOKENIZING (Memecah teks yang sudah bersih) ---
+        $words     = preg_split('/\W+/', $cleanLyrics, -1, PREG_SPLIT_NO_EMPTY);
         $wordCount = count($words);
 
         // --- Hitung skor emosi menggunakan lexicon ---
