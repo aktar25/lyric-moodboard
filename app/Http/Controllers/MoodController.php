@@ -39,7 +39,7 @@ class MoodController extends Controller
         {\"joy\": 0, \"sadness\": 0, \"anger\": 0, \"fear\": 0, \"love\": 0, \"hope\": 0, \"nostalgia\": 0}";
 
         // Kunci API yang sudah terbukti jalan!
-        $apiKey = "AIzaSyDvo6VGUicRa-xfzK92KQhe2gAlGDB1G2Q";
+        $apiKey = env('GEMINI_API_KEY');
 
         try {
             // URL TELAH DIPERBAIKI (Ditambah -latest)
@@ -79,6 +79,10 @@ class MoodController extends Controller
              $total = array_sum($scores);
         }
 
+        $scores = $this->applyShortLyricBoost($rawLyrics, $scores);
+        $total = array_sum($scores);
+
+
         $normalized = [];
         $divisor = max($total / 100, 1);
         foreach ($scores as $emotion => $raw) {
@@ -89,19 +93,32 @@ class MoodController extends Controller
         $dominant = array_key_first($normalized);
         $moodData = $this->moodToHsl[$dominant];
 
-        $secondary = array_keys($normalized)[1];
-        $secondaryHsl = $this->moodToHsl[$secondary];
+        $sortedKeys = array_keys($normalized);
+        $secondary = $sortedKeys[1] ?? $dominant;
+        $secondaryHsl = $this->moodToHsl[$secondary] ?? $moodData;
         $w1 = $normalized[$dominant] ?? 1;
         $w2 = $normalized[$secondary] ?? 1;
         $wTotal = max($w1 + $w2, 1);
 
-        $blendedH = round(($moodData['h'] * $w1 + $secondaryHsl['h'] * $w2) / $wTotal);
+        $blendedH = $this->blendHueCircular(
+            $moodData['h'],
+            $secondaryHsl['h'],
+            $w1,
+            $w2
+        );
+
         $blendedS = round(($moodData['s'] * $w1 + $secondaryHsl['s'] * $w2) / $wTotal);
         $blendedL = round(($moodData['l'] * $w1 + $secondaryHsl['l'] * $w2) / $wTotal);
 
+        if ($dominant === 'love') {
+            $blendedS = max($blendedS, 68);
+            $blendedL = max($blendedL, 48);
+        }
+
         $blendedH = ($blendedH + 360) % 360;
         $blendedS = max(20, min(90, $blendedS));
-        $blendedL = max(25, min(65, $blendedL));
+        $blendedL = max(25, min(70, $blendedL));
+
 
         $hexColor = $this->hslToHex($blendedH, $blendedS, $blendedL);
         $palette = $this->generatePalette($blendedH, $blendedS, $blendedL);
@@ -129,6 +146,77 @@ class MoodController extends Controller
             'word_count'      => $wordCount,
         ]);
     }
+
+        private function applyShortLyricBoost(string $lyrics, array $scores): array
+    {
+        $wordCount = count(preg_split('/\W+/u', $lyrics, -1, PREG_SPLIT_NO_EMPTY));
+
+        if ($wordCount > 10) {
+            return $scores;
+        }
+
+        $text = mb_strtolower($lyrics, 'UTF-8');
+
+        $loveWords = ['cinta', 'love', 'sayang', 'hati', 'rindu', 'kekasih', 'romantis'];
+        $joyWords = ['bahagia', 'senang', 'indah', 'tersenyum', 'gembira'];
+        $sadWords = ['sedih', 'patah', 'kecewa', 'menangis', 'hilang'];
+        $hopeWords = ['harap', 'berharap', 'menanti', 'impian'];
+
+        foreach ($loveWords as $word) {
+            if (str_contains($text, $word)) {
+                $scores['love'] = ($scores['love'] ?? 0) + 30;
+            }
+        }
+
+        foreach ($joyWords as $word) {
+            if (str_contains($text, $word)) {
+                $scores['joy'] = ($scores['joy'] ?? 0) + 18;
+            }
+        }
+
+        foreach ($sadWords as $word) {
+            if (str_contains($text, $word)) {
+                $scores['sadness'] = ($scores['sadness'] ?? 0) + 18;
+            }
+        }
+
+        foreach ($hopeWords as $word) {
+            if (str_contains($text, $word)) {
+                $scores['hope'] = ($scores['hope'] ?? 0) + 12;
+            }
+        }
+
+        foreach ($scores as $emotion => $value) {
+            $scores[$emotion] = max(0, min(100, (int) round($value)));
+        }
+
+        return $scores;
+    }
+
+    private function blendHueCircular(int $h1, int $h2, int $w1, int $w2): int
+    {
+        $w1 = max($w1, 1);
+        $w2 = max($w2, 1);
+
+        $a1 = deg2rad($h1);
+        $a2 = deg2rad($h2);
+
+        $x = cos($a1) * $w1 + cos($a2) * $w2;
+        $y = sin($a1) * $w1 + sin($a2) * $w2;
+
+        if (abs($x) < 0.0001 && abs($y) < 0.0001) {
+            return $h1;
+        }
+
+        $angle = rad2deg(atan2($y, $x));
+
+        if ($angle < 0) {
+            $angle += 360;
+        }
+
+        return (int) round($angle);
+    }
+
 
     private function hslToHex(int $h, int $s, int $l): string {
         $s /= 100; $l /= 100; $a = $s * min($l, 1 - $l);
