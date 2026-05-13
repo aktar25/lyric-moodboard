@@ -39,7 +39,7 @@ class MoodController extends Controller
         {\"joy\": 0, \"sadness\": 0, \"anger\": 0, \"fear\": 0, \"love\": 0, \"hope\": 0, \"nostalgia\": 0}";
 
         // Kunci API yang sudah terbukti jalan!
-        $apiKey = "AIzaSyDX66GO9plBgMjcOdjllWQa9--XdPZn5Ss";
+        $apiKey = "AIzaSyDvo6VGUicRa-xfzK92KQhe2gAlGDB1G2Q";
 
         try {
             // URL TELAH DIPERBAIKI (Ditambah -latest)
